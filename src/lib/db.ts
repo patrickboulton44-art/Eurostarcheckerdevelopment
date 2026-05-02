@@ -20,9 +20,11 @@ export async function initDb() {
       tier TEXT NOT NULL DEFAULT 'free',
       stripe_customer_id TEXT,
       stripe_subscription_id TEXT,
+      amnesty BOOLEAN NOT NULL DEFAULT false,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `;
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS amnesty BOOLEAN NOT NULL DEFAULT false`;
   await sql`
     CREATE TABLE IF NOT EXISTS watchers (
       id SERIAL PRIMARY KEY,
@@ -61,6 +63,20 @@ export async function initDb() {
       UNIQUE(watcher_id, available_date)
     )
   `;
+  await sql`
+    CREATE TABLE IF NOT EXISTS pending_notifications (
+      id SERIAL PRIMARY KEY,
+      email TEXT NOT NULL,
+      watcher_id INT NOT NULL REFERENCES watchers(id),
+      available_date DATE NOT NULL,
+      price_cents INT,
+      send_at TIMESTAMPTZ NOT NULL,
+      sent_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(watcher_id, available_date)
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS idx_pending_due ON pending_notifications (send_at) WHERE sent_at IS NULL`;
 }
 
 export async function addWatcher(
