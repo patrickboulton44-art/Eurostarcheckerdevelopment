@@ -6,9 +6,12 @@ import {
   upsertAvailability,
   hasNotificationBeenSent,
   recordNotification,
+  getUserByEmail,
+  queuePendingNotification,
 } from "@/lib/db";
 import { sendEmail, buildAvailabilityEmail } from "@/lib/email";
 import { ROUTES } from "@/lib/constants";
+import { hasInstantAccess, FREE_TIER_DELAY_MS } from "@/lib/access";
 
 // This endpoint is called by an external cron service (e.g. cron-job.org)
 // Protected by a secret token
@@ -84,28 +87,47 @@ export async function GET(req: NextRequest) {
             }
 
             if (newDates.length > 0) {
-              // Send notification
-              const html = buildAvailabilityEmail(
-                route.origin,
-                route.destination,
-                newDates,
-                watcher.unsubscribe_token,
-                route.originCode,
-                route.destCode,
-                watcher.passengers
-              );
+              const user = await getUserByEmail(watcher.email);
 
-              await sendEmail({
-                to: watcher.email,
-                subject: `🚄 Snap dates available: ${route.origin} → ${route.destination}`,
-                html,
-              });
+              if (hasInstantAccess(user)) {
+                // Pro or amnesty user — send immediately
+                const html = buildAvailabilityEmail(
+                  route.origin,
+                  route.destination,
+                  newDates,
+                  watcher.unsubscribe_token,
+                  route.originCode,
+                  route.destCode,
+                  watcher.passengers
+                );
 
-              // Record sent notifications
-              for (const d of newDates) {
-                await recordNotification(watcher.id, d.date);
+                await sendEmail({
+                  to: watcher.email,
+                  subject: `🚄 Snap dates available: ${route.origin} → ${route.destination}`,
+                  html,
+                });
+
+                for (const d of newDates) {
+                  await recordNotification(watcher.id, d.date);
+                }
+                totalNotified++;
+              } else {
+                // New free user — queue for FREE_TIER_DELAY_MS later
+                const sendAt = new Date(Date.now() + FREE_TIER_DELAY_MS);
+                for (const d of newDates) {
+                  await queuePendingNotification(
+                    watcher.email,
+                    watcher.id,
+                    d.date,
+                    d.price,
+                    sendAt
+                  );
+                  // Record into notifications_sent immediately so /api/check
+                  // doesn't re-queue the same date on a future run
+                  await recordNotification(watcher.id, d.date);
+                }
+                totalNotified++;
               }
-              totalNotified++;
             }
           }
         } catch (err) {

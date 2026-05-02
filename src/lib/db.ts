@@ -144,3 +144,55 @@ export async function recordNotification(watcherId: number, date: string) {
     ON CONFLICT (watcher_id, available_date) DO NOTHING
   `;
 }
+
+export async function getUserByEmail(email: string) {
+  const sql = getDb();
+  const rows = await sql`
+    SELECT id, email, tier, amnesty FROM users WHERE email = ${email} LIMIT 1
+  `;
+  return rows[0] || null;
+}
+
+export async function queuePendingNotification(
+  email: string,
+  watcherId: number,
+  date: string,
+  priceCents: number | null,
+  sendAt: Date
+) {
+  const sql = getDb();
+  await sql`
+    INSERT INTO pending_notifications (email, watcher_id, available_date, price_cents, send_at)
+    VALUES (${email}, ${watcherId}, ${date}, ${priceCents}, ${sendAt.toISOString()})
+    ON CONFLICT (watcher_id, available_date) DO NOTHING
+  `;
+}
+
+export async function getDuePendingNotifications(limit: number = 100) {
+  const sql = getDb();
+  return sql`
+    SELECT p.id, p.email, p.watcher_id, p.available_date, p.price_cents, w.route_id, w.unsubscribe_token, w.passengers
+    FROM pending_notifications p
+    JOIN watchers w ON p.watcher_id = w.id
+    WHERE p.sent_at IS NULL AND p.send_at <= NOW()
+    ORDER BY p.send_at
+    LIMIT ${limit}
+  `;
+}
+
+export async function markPendingSent(ids: number[]) {
+  if (ids.length === 0) return;
+  const sql = getDb();
+  await sql`UPDATE pending_notifications SET sent_at = NOW() WHERE id = ANY(${ids})`;
+}
+
+export async function countAmnestyInQueue(): Promise<number> {
+  const sql = getDb();
+  const rows = await sql`
+    SELECT COUNT(*)::int as c
+    FROM pending_notifications p
+    JOIN users u ON p.email = u.email
+    WHERE p.sent_at IS NULL AND u.amnesty = true
+  `;
+  return rows[0]?.c || 0;
+}

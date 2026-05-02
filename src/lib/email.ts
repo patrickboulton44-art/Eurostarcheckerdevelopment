@@ -45,6 +45,11 @@ export async function sendEmail({ to, subject, html }: EmailParams) {
     return;
   }
 
+  if (process.env.STAGING === "true") {
+    console.log(`[EMAIL STAGING SKIP] To: ${to}, Subject: ${subject}`);
+    return;
+  }
+
   const res = await fetch("https://api.brevo.com/v3/smtp/email", {
     method: "POST",
     headers: {
