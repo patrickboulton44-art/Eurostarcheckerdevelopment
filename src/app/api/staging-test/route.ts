@@ -20,6 +20,18 @@ function isStagingAuthed(req: NextRequest): boolean {
   return auth === `Bearer ${process.env.CRON_SECRET}`;
 }
 
+// Debug helper: shows what the function sees for STAGING. Auth-free because
+// it leaks no secrets — only the literal "true"/"false"/"unset" of one flag.
+export async function HEAD() {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      "x-staging-flag": process.env.STAGING ?? "unset",
+      "x-has-cron-secret": process.env.CRON_SECRET ? "yes" : "no",
+    },
+  });
+}
+
 export async function GET(req: NextRequest) {
   if (!isStagingAuthed(req)) return new NextResponse("Not found", { status: 404 });
 
