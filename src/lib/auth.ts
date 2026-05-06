@@ -88,10 +88,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token }) {
       if (token.email) {
         const sql = getDb();
-        const rows = await sql`SELECT id, tier, stripe_customer_id FROM users WHERE email = ${token.email}`;
+        const rows = await sql`SELECT id, tier, amnesty, stripe_customer_id FROM users WHERE email = ${token.email}`;
         if (rows.length > 0) {
           token.userId = rows[0].id;
           token.tier = rows[0].tier;
+          token.amnesty = rows[0].amnesty;
           token.stripeCustomerId = rows[0].stripe_customer_id;
         }
       }
@@ -103,6 +104,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const user = session.user as any;
         user.id = token.userId;
         user.tier = token.tier;
+        user.amnesty = token.amnesty;
       }
       return session;
     },

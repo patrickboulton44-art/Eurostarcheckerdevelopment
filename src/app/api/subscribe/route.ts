@@ -38,8 +38,10 @@ export async function POST(req: NextRequest) {
 
     // Check user tier — enforce free limits on backend
     const sql = getDb();
-    const users = await sql`SELECT tier FROM users WHERE email = ${email}`;
+    const users = await sql`SELECT tier, amnesty FROM users WHERE email = ${email}`;
     const userTier = users.length > 0 ? users[0].tier : "free";
+    const userAmnesty = users.length > 0 ? users[0].amnesty === true : false;
+    const instantAccess = userTier === "pro" || userAmnesty;
 
     // Free users: force all weekdays + any time slot
     const weekdayStr = userTier === "pro" && Array.isArray(weekdays)
@@ -58,7 +60,8 @@ export async function POST(req: NextRequest) {
       dateFrom,
       dateTo,
       pax,
-      unsubscribeToken
+      unsubscribeToken,
+      instantAccess
     );
 
     await sendEmail({

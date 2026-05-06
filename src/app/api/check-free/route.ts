@@ -10,8 +10,8 @@ import {
 import { sendEmail, buildAvailabilityEmail } from "@/lib/email";
 import { ROUTES } from "@/lib/constants";
 
-// Instant cron — runs every 5 min for pro + amnesty watchers only.
-// Free non-amnesty watchers are handled by /api/check-free on a 90-min cadence.
+// Free cron — runs every 90 min for free non-amnesty watchers only.
+// Pro + amnesty watchers are handled by /api/check on a 5-min cadence.
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   const cronSecret = process.env.CRON_SECRET;
@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
   try {
     await initDb();
-    const watchers = await getActiveWatchers("instant");
+    const watchers = await getActiveWatchers("free");
 
     if (watchers.length === 0) {
       return NextResponse.json({ message: "No active watchers", checked: 0 });
@@ -112,7 +112,7 @@ export async function GET(req: NextRequest) {
       notificationsSent: totalNotified,
     });
   } catch (error) {
-    console.error("Check error:", error);
+    console.error("Check-free error:", error);
     return NextResponse.json({ error: "Check failed" }, { status: 500 });
   }
 }

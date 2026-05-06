@@ -98,8 +98,22 @@ export async function addWatcher(
   `;
 }
 
-export async function getActiveWatchers() {
+export async function getActiveWatchers(tier?: "instant" | "free") {
   const sql = getDb();
+  if (tier === "instant") {
+    return sql`
+      SELECT w.* FROM watchers w
+      JOIN users u ON w.email = u.email
+      WHERE w.active = true AND (u.tier = 'pro' OR u.amnesty = true)
+    `;
+  }
+  if (tier === "free") {
+    return sql`
+      SELECT w.* FROM watchers w
+      JOIN users u ON w.email = u.email
+      WHERE w.active = true AND u.tier = 'free' AND u.amnesty = false
+    `;
+  }
   return sql`SELECT * FROM watchers WHERE active = true`;
 }
 

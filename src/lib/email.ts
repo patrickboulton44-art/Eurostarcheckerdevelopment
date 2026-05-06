@@ -76,13 +76,16 @@ export function buildConfirmationEmail(
   dateFrom: string,
   dateTo: string,
   passengers: number,
-  unsubscribeToken: string
+  unsubscribeToken: string,
+  instantAccess: boolean = false
 ) {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://eurosnap.app";
   const unsubscribeUrl = `${baseUrl}/api/unsubscribe?token=${unsubscribeToken}`;
 
   const fromStr = new Date(dateFrom).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const toStr = new Date(dateTo).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+
+  const cadenceLabel = instantAccess ? "Every 5 minutes" : "Every 90 minutes";
 
   return `
     <!DOCTYPE html>
@@ -109,7 +112,7 @@ export function buildConfirmationEmail(
             </tr>
             <tr>
               <td style="padding:8px 0;color:#666666;font-size:13px;text-transform:uppercase;letter-spacing:1px;">Checking</td>
-              <td style="padding:8px 0;color:#ffffff;font-size:16px;text-align:right;">Every 30 minutes</td>
+              <td style="padding:8px 0;color:#ffffff;font-size:16px;text-align:right;">${cadenceLabel}</td>
             </tr>
           </table>
         </div>
