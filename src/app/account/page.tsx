@@ -123,7 +123,7 @@ export default function Account() {
           <div>
             <span className="text-white font-semibold">{tier === "pro" ? "Pro" : "Free"}</span>
             <span className="text-white/40 text-sm ml-2">
-              {tier === "pro" ? "£3.99/mo — checks every 5 min" : "Checks every 90 min"}
+              {tier === "pro" ? "£3.99/mo — checks every 5 min" : "Checks every 60 min"}
             </span>
           </div>
           {tier !== "pro" && (

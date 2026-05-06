@@ -10,7 +10,7 @@ import {
 import { sendEmail, buildAvailabilityEmail } from "@/lib/email";
 import { ROUTES } from "@/lib/constants";
 
-// Free cron — runs every 90 min for free non-amnesty watchers only.
+// Free cron — runs every 60 min for free non-amnesty watchers only.
 // Pro + amnesty watchers are handled by /api/check on a 5-min cadence.
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");

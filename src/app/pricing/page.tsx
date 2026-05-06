@@ -68,7 +68,7 @@ function PricingContent() {
           <ul className="space-y-3 text-sm mb-8">
             <li className="flex items-start gap-2">
               <span className="text-white/60 mt-0.5">&#10003;</span>
-              <span className="text-white/70">Checks every 90 minutes</span>
+              <span className="text-white/70">Checks every 60 minutes</span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-white/60 mt-0.5">&#10003;</span>

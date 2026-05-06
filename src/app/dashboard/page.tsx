@@ -352,7 +352,7 @@ function DashboardContent() {
                 <div className="rounded-2xl p-6 mt-4"
                   style={{ background: "linear-gradient(135deg, #6C3AED 0%, #DB2777 50%, #F472B6 100%)" }}>
                   <h3 className="text-white font-bold text-sm uppercase mb-1">Get there first with Pro</h3>
-                  <p className="text-white/80 text-xs mb-4">Your alerts check every 90 minutes. Pro checks every 5.</p>
+                  <p className="text-white/80 text-xs mb-4">Your alerts check every 60 minutes. Pro checks every 5.</p>
                   <ul className="space-y-1 text-xs text-white/90 mb-4">
                     <li>&#10003; 18x faster checks</li>
                     <li>&#10003; Multiple destinations</li>

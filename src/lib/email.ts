@@ -85,7 +85,7 @@ export function buildConfirmationEmail(
   const fromStr = new Date(dateFrom).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const toStr = new Date(dateTo).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 
-  const cadenceLabel = instantAccess ? "Every 5 minutes" : "Every 90 minutes";
+  const cadenceLabel = instantAccess ? "Every 5 minutes" : "Every 60 minutes";
 
   return `
     <!DOCTYPE html>
