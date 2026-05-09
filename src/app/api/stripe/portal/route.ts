@@ -26,7 +26,22 @@ export async function POST() {
       SELECT stripe_customer_id FROM users WHERE email = ${session.user.email}
     `;
 
-    const customerId = rows[0]?.stripe_customer_id;
+    let customerId = rows[0]?.stripe_customer_id as string | null;
+
+    // Fallback: if no customer_id stored (e.g. user marked Pro manually,
+    // or checkout pre-dates webhook), look them up in Stripe by email.
+    if (!customerId) {
+      const stripe = getStripe();
+      const customers = await stripe.customers.list({ email: session.user.email, limit: 1 });
+      if (customers.data.length > 0) {
+        customerId = customers.data[0].id;
+        // Persist for next time
+        await sql`
+          UPDATE users SET stripe_customer_id = ${customerId} WHERE email = ${session.user.email}
+        `;
+      }
+    }
+
     if (!customerId) {
       return NextResponse.json({ error: "No active subscription found" }, { status: 404 });
     }
