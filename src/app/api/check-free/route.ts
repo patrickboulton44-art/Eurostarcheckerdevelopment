@@ -10,6 +10,8 @@ import {
 import { sendEmail, buildAvailabilityEmail } from "@/lib/email";
 import { ROUTES } from "@/lib/constants";
 
+export const maxDuration = 60;
+
 // Free cron — runs every 60 min for free non-amnesty watchers only.
 // Pro + amnesty watchers are handled by /api/check on a 5-min cadence.
 export async function GET(req: NextRequest) {
@@ -35,33 +37,27 @@ export async function GET(req: NextRequest) {
       routeGroups.set(w.route_id, group);
     }
 
+    const now = new Date();
+    const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const monthList = [
+      { year: now.getFullYear(), month: now.getMonth() + 1 },
+      { year: next.getFullYear(), month: next.getMonth() + 1 },
+    ];
+
     let totalChecked = 0;
     let totalNotified = 0;
 
-    for (const [routeId, groupWatchers] of routeGroups) {
+    async function processRoute(routeId: string, groupWatchers: typeof watchers) {
       const route = ROUTES.find((r) => r.id === routeId);
-      if (!route) continue;
+      if (!route) return;
 
-      const now = new Date();
-      const months = new Set<string>();
-      months.add(`${now.getFullYear()}-${now.getMonth() + 1}`);
-      const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-      months.add(`${next.getFullYear()}-${next.getMonth() + 1}`);
-
-      for (const monthKey of months) {
-        const [year, month] = monthKey.split("-").map(Number);
+      for (const m of monthList) {
         try {
-          const availability = await checkAvailability(
-            route.originCode,
-            route.destCode,
-            year,
-            month
-          );
+          const availability = await checkAvailability(route.originCode, route.destCode, m.year, m.month);
 
           for (const slot of availability) {
             await upsertAvailability(routeId, slot.date, slot.price);
           }
-
           totalChecked++;
 
           for (const watcher of groupWatchers) {
@@ -101,10 +97,14 @@ export async function GET(req: NextRequest) {
             }
           }
         } catch (err) {
-          console.error(`Error checking ${routeId} ${monthKey}:`, err);
+          console.error(`Error checking ${routeId} ${m.year}-${m.month}:`, err);
         }
       }
     }
+
+    await Promise.all(
+      Array.from(routeGroups).map(([routeId, groupWatchers]) => processRoute(routeId, groupWatchers))
+    );
 
     return NextResponse.json({
       message: "Check complete",

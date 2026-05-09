@@ -69,8 +69,8 @@ export async function checkAvailability(
   year: number,
   month: number // 1-indexed
 ): Promise<DateAvailability[]> {
-  // Small jitter to look natural without hitting Vercel timeout
-  await jitter(200, 1500);
+  // Small jitter to stagger parallel requests slightly
+  await jitter(50, 200);
 
   const targetDate = `${year}-${String(month).padStart(2, "0")}-15`;
   const searchUrl = `https://snap.eurostar.com/uk-en/search?origin=${originCode}&destination=${destCode}&outbound=${targetDate}&adult=1`;
