@@ -117,6 +117,7 @@ export default function Home() {
 
   const [submitLoading, setSubmitLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [showFreeConfirmModal, setShowFreeConfirmModal] = useState(false);
 
   const isSignedIn = !!session;
   const isPro = tier === "pro";
@@ -467,32 +468,75 @@ export default function Home() {
           </div>
 
           {needsPro && (
-            <div className="rounded-xl p-5 mb-6" style={{ background: "linear-gradient(135deg, #6C3AED 0%, #DB2777 50%, #F472B6 100%)" }}>
-              <h3 className="text-white font-bold text-sm uppercase mb-3">Pro features selected</h3>
-              <ul className="space-y-1 text-sm text-white/90 mb-2">
-                {usedProFeatures.map((f, i) => (
-                  <li key={i}>&#10003; {f}</li>
-                ))}
-              </ul>
-              <p className="text-white/60 text-xs uppercase tracking-wider mt-3 mb-2">Other Pro features</p>
-              <ul className="space-y-1 text-sm text-white/70 mb-4">
-                {!hasCustomDays && <li>&#10003; Weekday filtering</li>}
-                {!hasCustomSlot && <li>&#10003; Morning / afternoon preference</li>}
-                {!hasMultiDest && <li>&#10003; Monitor multiple destinations</li>}
-                <li>&#10003; Checks every 5 minutes (18x faster)</li>
-                <li>&#10003; Cancel anytime</li>
-              </ul>
-              <a href="/pricing"
-                className="block w-full py-3 rounded-lg font-bold uppercase tracking-wider text-sm text-center hover:opacity-90 transition-all mb-3"
-                style={{ background: "#ffffff", color: "#000000" }}>
-                Upgrade to Pro — £3.99/mo
-              </a>
-              <button
-                onClick={continueWithFree}
-                className="w-full text-center text-white/50 text-sm hover:text-white/70 transition-colors cursor-pointer">
-                Continue with free plan
-              </button>
-            </div>
+            <>
+              <div className="rounded-xl p-5 mb-6" style={{ background: "linear-gradient(135deg, #6C3AED 0%, #DB2777 50%, #F472B6 100%)" }}>
+                <ul className="space-y-2 text-base text-white mb-5 pb-4 border-b border-white/20">
+                  <li><strong>&#10003; Instant notifications</strong></li>
+                  <li><strong>&#10003; Checks every 5 minutes</strong></li>
+                </ul>
+                <p className="text-white/60 text-xs uppercase tracking-wider mb-2">Plus all Pro features</p>
+                <ul className="space-y-1 text-sm text-white/80 mb-5">
+                  {!hasCustomDays && <li>&#10003; Weekday filtering</li>}
+                  {!hasCustomSlot && <li>&#10003; Morning / afternoon preference</li>}
+                  {!hasMultiDest && <li>&#10003; Monitor multiple destinations</li>}
+                  <li>&#10003; Cancel anytime</li>
+                </ul>
+                <div className="border-t border-white/20 pt-4 mb-5">
+                  <p className="text-white/60 text-xs uppercase tracking-wider mb-2">Pro features selected</p>
+                  <ul className="space-y-1 text-sm text-white/90">
+                    {usedProFeatures.map((f, i) => (
+                      <li key={i}>&#10003; {f}</li>
+                    ))}
+                  </ul>
+                </div>
+                <a href="/pricing"
+                  className="block w-full py-3 rounded-lg font-bold uppercase tracking-wider text-sm text-center hover:opacity-90 transition-all mb-3"
+                  style={{ background: "#ffffff", color: "#000000" }}>
+                  Upgrade to Pro — £3.99/mo
+                </a>
+                <button
+                  onClick={() => setShowFreeConfirmModal(true)}
+                  className="w-full text-center text-white/50 text-sm hover:text-white/70 transition-colors cursor-pointer">
+                  Continue with free plan
+                </button>
+              </div>
+
+              {showFreeConfirmModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+                  <div
+                    onClick={() => setShowFreeConfirmModal(false)}
+                    className="absolute inset-0 bg-black/70 backdrop-blur-sm cursor-pointer"
+                  />
+                  <div
+                    className="relative max-w-md w-full rounded-2xl p-6 sm:p-8 shadow-2xl"
+                    style={{ background: "linear-gradient(135deg, #6C3AED 0%, #DB2777 50%, #F472B6 100%)" }}
+                  >
+                    <h3 className="text-2xl sm:text-3xl font-bold text-white uppercase tracking-tight mb-3">
+                      Are you sure?
+                    </h3>
+                    <p className="text-white/85 text-sm mb-5">
+                      By selecting free you&apos;ll miss out on:
+                    </p>
+                    <ul className="space-y-2 text-sm text-white mb-6">
+                      {usedProFeatures.map((f, i) => (
+                        <li key={i}>&#10003; {f}</li>
+                      ))}
+                      <li><strong>&#10003; Near-instant notifications</strong></li>
+                    </ul>
+                    <a href="/pricing"
+                      className="block w-full py-3 rounded-lg font-bold uppercase tracking-wider text-sm text-center hover:opacity-90 transition-all mb-3"
+                      style={{ background: "#ffffff", color: "#000000" }}>
+                      Upgrade to Pro — £3.99/mo
+                    </a>
+                    <button
+                      onClick={() => { setShowFreeConfirmModal(false); continueWithFree(); }}
+                      className="w-full text-center text-white/60 text-sm hover:text-white/80 transition-colors cursor-pointer">
+                      Continue with free plan
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           {!needsPro && (

@@ -15,6 +15,8 @@ export default function Account() {
   const [signOutLoading, setSignOutLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [portalError, setPortalError] = useState<string | null>(null);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const user = session?.user as any;
@@ -72,6 +74,24 @@ export default function Account() {
     await signOut({ callbackUrl: "/" });
   }
 
+  async function handleManageSubscription() {
+    setPortalLoading(true);
+    setPortalError(null);
+    try {
+      const res = await fetch("/api/stripe/portal", { method: "POST" });
+      const data = await res.json();
+      if (res.ok && data.url) {
+        window.location.href = data.url;
+      } else {
+        setPortalError(data.error || "Could not open billing portal");
+        setPortalLoading(false);
+      }
+    } catch {
+      setPortalError("Could not open billing portal");
+      setPortalLoading(false);
+    }
+  }
+
   if (status === "loading" || status === "unauthenticated") {
     return <main className="min-h-screen flex items-center justify-center text-white/50">Loading...</main>;
   }
@@ -119,21 +139,40 @@ export default function Account() {
       {/* Plan */}
       <section className="mb-10">
         <h2 className="text-xs uppercase tracking-widest text-white/40 mb-4">Plan</h2>
-        <div className="rounded-xl p-5 flex justify-between items-center" style={{ background: "#002266" }}>
-          <div>
-            <span className="text-white font-semibold">{tier === "pro" ? "Pro" : "Free"}</span>
-            <span className="text-white/40 text-sm ml-2">
-              {tier === "pro" ? "£3.99/mo — checks every 5 min" : "Checks every 60 min"}
-            </span>
+        <div className="rounded-xl p-5" style={{ background: "#002266" }}>
+          <div className="flex justify-between items-center">
+            <div>
+              <span className="text-white font-semibold">{tier === "pro" ? "Pro" : "Free"}</span>
+              <span className="text-white/40 text-sm ml-2">
+                {tier === "pro" ? "£3.99/mo — checks every 5 min" : "Checks every 60 min"}
+              </span>
+            </div>
+            {tier !== "pro" && (
+              <a
+                href="/pricing"
+                className="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-all"
+                style={{ background: "#ffffff", color: "#000000" }}
+              >
+                Upgrade
+              </a>
+            )}
           </div>
-          {tier !== "pro" && (
-            <a
-              href="/pricing"
-              className="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-all"
-              style={{ background: "#ffffff", color: "#000000" }}
-            >
-              Upgrade
-            </a>
+          {tier === "pro" && (
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <button
+                onClick={handleManageSubscription}
+                disabled={portalLoading}
+                className="w-full py-3 rounded-lg font-bold uppercase tracking-wider text-sm cursor-pointer disabled:opacity-50 hover:opacity-90 transition-all border border-white/20 text-white"
+              >
+                {portalLoading ? "Opening..." : "Manage subscription"}
+              </button>
+              <p className="text-white/40 text-xs mt-2 text-center">
+                Update payment, view invoices, or cancel anytime.
+              </p>
+              {portalError && (
+                <p className="text-red-300 text-xs mt-2 text-center">{portalError}</p>
+              )}
+            </div>
           )}
         </div>
       </section>
