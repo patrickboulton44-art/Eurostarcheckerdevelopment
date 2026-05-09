@@ -15,8 +15,10 @@ export default function Account() {
   const [signOutLoading, setSignOutLoading] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
-  const [portalLoading, setPortalLoading] = useState(false);
-  const [portalError, setPortalError] = useState<string | null>(null);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [cancelLoading, setCancelLoading] = useState(false);
+  const [cancelError, setCancelError] = useState<string | null>(null);
+  const [cancelSuccess, setCancelSuccess] = useState<string | null>(null);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const user = session?.user as any;
@@ -74,21 +76,29 @@ export default function Account() {
     await signOut({ callbackUrl: "/" });
   }
 
-  async function handleManageSubscription() {
-    setPortalLoading(true);
-    setPortalError(null);
+  async function handleConfirmCancel() {
+    setCancelLoading(true);
+    setCancelError(null);
     try {
-      const res = await fetch("/api/stripe/portal", { method: "POST" });
+      const res = await fetch("/api/stripe/cancel", { method: "POST" });
       const data = await res.json();
-      if (res.ok && data.url) {
-        window.location.href = data.url;
+      if (res.ok) {
+        const periodEnd = data.cancelAt
+          ? new Date(data.cancelAt * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" })
+          : null;
+        setCancelSuccess(
+          periodEnd
+            ? `Subscription cancelled. You'll keep Pro access until ${periodEnd}.`
+            : "Subscription cancelled. You'll keep Pro access until the end of your billing period."
+        );
+        setCancelConfirmOpen(false);
       } else {
-        setPortalError(data.error || "Could not open billing portal");
-        setPortalLoading(false);
+        setCancelError(data.error || "Could not cancel subscription");
       }
     } catch {
-      setPortalError("Could not open billing portal");
-      setPortalLoading(false);
+      setCancelError("Could not cancel subscription");
+    } finally {
+      setCancelLoading(false);
     }
   }
 
@@ -159,18 +169,23 @@ export default function Account() {
           </div>
           {tier === "pro" && (
             <div className="mt-4 pt-4 border-t border-white/10">
-              <button
-                onClick={handleManageSubscription}
-                disabled={portalLoading}
-                className="w-full py-3 rounded-lg font-bold uppercase tracking-wider text-sm cursor-pointer disabled:opacity-50 hover:opacity-90 transition-all border border-white/20 text-white"
-              >
-                {portalLoading ? "Opening..." : "Manage subscription"}
-              </button>
-              <p className="text-white/40 text-xs mt-2 text-center">
-                Update payment, view invoices, or cancel anytime.
-              </p>
-              {portalError && (
-                <p className="text-red-300 text-xs mt-2 text-center">{portalError}</p>
+              {cancelSuccess ? (
+                <p className="text-green-300 text-sm text-center">{cancelSuccess}</p>
+              ) : (
+                <>
+                  <button
+                    onClick={() => { setCancelError(null); setCancelConfirmOpen(true); }}
+                    className="w-full py-3 rounded-lg font-bold uppercase tracking-wider text-sm cursor-pointer hover:bg-red-900/20 transition-all border border-red-500/30 text-red-400"
+                  >
+                    Cancel subscription
+                  </button>
+                  <p className="text-white/40 text-xs mt-2 text-center">
+                    You&apos;ll keep Pro access until the end of your billing period.
+                  </p>
+                  {cancelError && (
+                    <p className="text-red-300 text-xs mt-2 text-center">{cancelError}</p>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -281,6 +296,45 @@ export default function Account() {
           </div>
         )}
       </section>
+
+      {cancelConfirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+          <div
+            onClick={() => !cancelLoading && setCancelConfirmOpen(false)}
+            className="absolute inset-0 bg-black/70 backdrop-blur-sm cursor-pointer"
+          />
+          <div className="relative max-w-md w-full rounded-2xl p-6 sm:p-8 shadow-2xl border border-white/10" style={{ background: "#001a4d" }}>
+            <h3 className="text-2xl font-bold text-white uppercase tracking-tight mb-3">
+              Cancel subscription?
+            </h3>
+            <p className="text-white/70 text-sm mb-2">
+              You&apos;ll keep Pro access until the end of your current billing period, then automatically move to the free plan.
+            </p>
+            <p className="text-white/50 text-xs mb-6">
+              Free plan: checks every 60 minutes, single destination, no weekday or time-slot filters.
+            </p>
+            {cancelError && (
+              <p className="text-red-300 text-sm mb-4 text-center">{cancelError}</p>
+            )}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setCancelConfirmOpen(false)}
+                disabled={cancelLoading}
+                className="flex-1 py-3 rounded-lg font-bold uppercase tracking-wider text-sm cursor-pointer disabled:opacity-50 hover:opacity-90 transition-all border border-white/20 text-white/70"
+              >
+                Keep Pro
+              </button>
+              <button
+                onClick={handleConfirmCancel}
+                disabled={cancelLoading}
+                className="flex-1 py-3 rounded-lg font-bold uppercase tracking-wider text-sm cursor-pointer disabled:opacity-50 transition-all bg-red-600 text-white hover:bg-red-700"
+              >
+                {cancelLoading ? "Cancelling..." : "Yes, cancel"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
