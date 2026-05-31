@@ -6,6 +6,9 @@ import { initDb } from "@/lib/db";
 import { addBrevoContact } from "@/lib/email";
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  // Required off-Vercel (Cloudflare Workers): trust the deployment host so
+  // auth callbacks accept the workers.dev / custom domain origin.
+  trustHost: true,
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
