@@ -21,6 +21,8 @@ npm-debug.log*
 # env files
 .env*.local
 .env
+.dev.vars
+.dev.vars.*
 
 # vercel
 .vercel

@@ -12,9 +12,7 @@
     {
       "binding": "DB",
       "database_name": "eurosnap",
-      // Replace after `wrangler d1 create eurosnap`. Placeholder is fine for
-      // `wrangler dev` / `--local` (local SQLite keyed by binding name).
-      "database_id": "00000000-0000-0000-0000-000000000000"
+      "database_id": "662dc4c3-3ada-48d9-af2d-e354f285aaef"
     }
   ]
   // Cron Triggers are added in Phase 4 (Workers scheduled() handler) — until
