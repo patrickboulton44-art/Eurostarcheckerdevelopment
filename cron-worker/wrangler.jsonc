@@ -1,0 +1,15 @@
+{
+  "name": "eurosnap-cron",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-03-01",
+  "vars": {
+    // Swap to "https://eurosnap.app" at production cutover (after seed-baseline).
+    "TARGET_URL": "https://eurosnap-dev.patrickboulton44.workers.dev"
+  },
+  "triggers": {
+    "crons": ["*/5 * * * *", "0 * * * *"]
+  },
+  "observability": {
+    "enabled": true
+  }
+}
