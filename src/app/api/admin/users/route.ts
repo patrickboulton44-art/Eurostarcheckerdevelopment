@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { neon } from "@neondatabase/serverless";
+import { sql } from "@/lib/d1";
 import { deleteBrevoContact } from "@/lib/email";
-
-function getDb() {
-  const url = process.env.DATABASE_URL || process.env.STORAGE_URL;
-  if (!url) throw new Error("DATABASE_URL or STORAGE_URL is not set");
-  return neon(url);
-}
 
 // GET: list all users
 export async function GET(req: NextRequest) {
@@ -15,7 +9,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const sql = getDb();
   const users = await sql`SELECT id, email, name, tier, created_at FROM users ORDER BY created_at DESC`;
   return NextResponse.json({ users });
 }
@@ -32,13 +25,12 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "Email and tier (free/pro) required" }, { status: 400 });
   }
 
-  const sql = getDb();
   await sql`UPDATE users SET tier = ${tier} WHERE email = ${email}`;
 
   return NextResponse.json({ success: true, email, tier });
 }
 
-// DELETE: remove a user from both Postgres and Brevo
+// DELETE: remove a user from both the database and Brevo
 export async function DELETE(req: NextRequest) {
   const secret = req.headers.get("authorization");
   if (secret !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -50,10 +42,8 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Email required" }, { status: 400 });
   }
 
-  const sql = getDb();
-
   // Delete watchers and notifications first
-  const watchers = await sql`SELECT id FROM watchers WHERE email = ${email}`;
+  const watchers = await sql<{ id: number }>`SELECT id FROM watchers WHERE email = ${email}`;
   for (const w of watchers) {
     await sql`DELETE FROM notifications_sent WHERE watcher_id = ${w.id}`;
   }

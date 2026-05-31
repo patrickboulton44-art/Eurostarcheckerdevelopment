@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "eurosnap-dev",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2025-03-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "eurosnap",
+      // Replace after `wrangler d1 create eurosnap`. Placeholder is fine for
+      // `wrangler dev` / `--local` (local SQLite keyed by binding name).
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ]
+  // Cron Triggers are added in Phase 4 (Workers scheduled() handler) — until
+  // then cron-job.org continues to hit /api/check and /api/check-free.
+}

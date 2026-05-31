@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "cf:build": "opennextjs-cloudflare build",
+    "cf:preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
+    "cf:deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
+    "db:local": "wrangler d1 execute eurosnap --local --file=db/schema.sql",
+    "db:remote": "wrangler d1 execute eurosnap --remote --file=db/schema.sql"
   },
   "dependencies": {
     "@neondatabase/serverless": "^0.10.4",
@@ -19,6 +24,8 @@
     "stripe": "^21.0.1"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260531.1",
+    "@opennextjs/cloudflare": "^1.19.11",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
@@ -27,6 +34,7 @@
     "eslint-config-next": "^15.1.0",
     "postcss": "^8.0.0",
     "tailwindcss": "^4.0.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "wrangler": "^4.95.0"
   }
 }

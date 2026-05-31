@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { checkAvailability } from "@/lib/scraper";
 import {
-  initDb,
   getActiveWatchers,
   upsertAvailability,
   hasNotificationBeenSent,
@@ -23,7 +22,6 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    await initDb();
     const watchers = await getActiveWatchers("free");
 
     if (watchers.length === 0) {

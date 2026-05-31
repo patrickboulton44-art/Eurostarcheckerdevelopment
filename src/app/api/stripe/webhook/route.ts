@@ -1,15 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { neon } from "@neondatabase/serverless";
+import { sql } from "@/lib/d1";
 
 function getStripe() {
   return new Stripe(process.env.STRIPE_SECRET_KEY!);
-}
-
-function getDb() {
-  const url = process.env.DATABASE_URL || process.env.STORAGE_URL;
-  if (!url) throw new Error("DATABASE_URL or STORAGE_URL is not set");
-  return neon(url);
 }
 
 export async function POST(req: NextRequest) {
@@ -27,8 +21,6 @@ export async function POST(req: NextRequest) {
     console.error("Webhook signature verification failed:", err);
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
-
-  const sql = getDb();
 
   switch (event.type) {
     case "checkout.session.completed": {

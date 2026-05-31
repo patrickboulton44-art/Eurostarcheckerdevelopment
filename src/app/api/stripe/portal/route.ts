@@ -1,16 +1,10 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { neon } from "@neondatabase/serverless";
+import { sql } from "@/lib/d1";
 import Stripe from "stripe";
 
 function getStripe() {
   return new Stripe(process.env.STRIPE_SECRET_KEY!);
-}
-
-function getDb() {
-  const url = process.env.DATABASE_URL || process.env.STORAGE_URL;
-  if (!url) throw new Error("DATABASE_URL or STORAGE_URL is not set");
-  return neon(url);
 }
 
 export async function POST() {
@@ -21,12 +15,11 @@ export async function POST() {
   }
 
   try {
-    const sql = getDb();
-    const rows = await sql`
+    const rows = await sql<{ stripe_customer_id: string | null }>`
       SELECT stripe_customer_id FROM users WHERE email = ${session.user.email}
     `;
 
-    let customerId = rows[0]?.stripe_customer_id as string | null;
+    let customerId = rows[0]?.stripe_customer_id ?? null;
 
     // Fallback: if no customer_id stored (e.g. user marked Pro manually,
     // or checkout pre-dates webhook), look them up in Stripe by email.

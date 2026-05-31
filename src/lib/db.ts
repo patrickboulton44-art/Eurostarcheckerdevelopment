@@ -1,18 +1,16 @@
-import { neon } from "@neondatabase/serverless";
+import { sql } from "./d1";
 
-function getDb() {
-  const url = process.env.DATABASE_URL || process.env.STORAGE_URL;
-  if (!url) {
-    throw new Error("DATABASE_URL or STORAGE_URL is not set");
-  }
-  return neon(url);
-}
+/**
+ * Data layer — Cloudflare D1 (SQLite).
+ * Ported from the previous @neondatabase/serverless (Postgres) implementation.
+ * Schema lives in db/schema.sql; initDb() keeps a SQLite-valid, idempotent
+ * safety net for fresh databases (no Postgres-only ALTER ... IF NOT EXISTS).
+ */
 
 export async function initDb() {
-  const sql = getDb();
   await sql`
     CREATE TABLE IF NOT EXISTS users (
-      id SERIAL PRIMARY KEY,
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
       email TEXT NOT NULL UNIQUE,
       name TEXT NOT NULL DEFAULT '',
       password_hash TEXT,
@@ -20,46 +18,42 @@ export async function initDb() {
       tier TEXT NOT NULL DEFAULT 'free',
       stripe_customer_id TEXT,
       stripe_subscription_id TEXT,
-      amnesty BOOLEAN NOT NULL DEFAULT false,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      amnesty INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
     )
   `;
-  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS amnesty BOOLEAN NOT NULL DEFAULT false`;
   await sql`
     CREATE TABLE IF NOT EXISTS watchers (
-      id SERIAL PRIMARY KEY,
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
       email TEXT NOT NULL,
       route_id TEXT NOT NULL,
-      date_from DATE NOT NULL,
-      date_to DATE NOT NULL,
-      passengers INT NOT NULL DEFAULT 1,
-      active BOOLEAN NOT NULL DEFAULT true,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      date_from TEXT NOT NULL,
+      date_to TEXT NOT NULL,
+      passengers INTEGER NOT NULL DEFAULT 1,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
       unsubscribe_token TEXT NOT NULL,
       weekdays TEXT NOT NULL DEFAULT '0,1,2,3,4,5,6',
       time_slot_pref TEXT NOT NULL DEFAULT 'any',
       UNIQUE(email, route_id, date_from, date_to)
     )
   `;
-  // Migrations
-  await sql`ALTER TABLE watchers ADD COLUMN IF NOT EXISTS weekdays TEXT NOT NULL DEFAULT '0,1,2,3,4,5,6'`;
-  await sql`ALTER TABLE watchers ADD COLUMN IF NOT EXISTS time_slot_pref TEXT NOT NULL DEFAULT 'any'`;
   await sql`
     CREATE TABLE IF NOT EXISTS availability_cache (
-      id SERIAL PRIMARY KEY,
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
       route_id TEXT NOT NULL,
-      available_date DATE NOT NULL,
-      price_cents INT,
-      checked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      available_date TEXT NOT NULL,
+      price_cents INTEGER,
+      checked_at TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE(route_id, available_date)
     )
   `;
   await sql`
     CREATE TABLE IF NOT EXISTS notifications_sent (
-      id SERIAL PRIMARY KEY,
-      watcher_id INT NOT NULL REFERENCES watchers(id),
-      available_date DATE NOT NULL,
-      sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      watcher_id INTEGER NOT NULL REFERENCES watchers(id),
+      available_date TEXT NOT NULL,
+      sent_at TEXT NOT NULL DEFAULT (datetime('now')),
       UNIQUE(watcher_id, available_date)
     )
   `;
@@ -75,61 +69,69 @@ export async function addWatcher(
   weekdays: string = "0,1,2,3,4,5,6",
   timeSlotPref: string = "any"
 ) {
-  const sql = getDb();
   await sql`
     INSERT INTO watchers (email, route_id, date_from, date_to, passengers, unsubscribe_token, weekdays, time_slot_pref)
     VALUES (${email}, ${routeId}, ${dateFrom}, ${dateTo}, ${passengers}, ${unsubscribeToken}, ${weekdays}, ${timeSlotPref})
     ON CONFLICT (email, route_id, date_from, date_to)
-    DO UPDATE SET active = true, passengers = ${passengers}, weekdays = ${weekdays}, time_slot_pref = ${timeSlotPref}
+    DO UPDATE SET active = 1, passengers = ${passengers}, weekdays = ${weekdays}, time_slot_pref = ${timeSlotPref}
   `;
 }
 
-export async function getActiveWatchers(tier?: "instant" | "free") {
-  const sql = getDb();
+export interface WatcherRow {
+  id: number;
+  email: string;
+  route_id: string;
+  date_from: string;
+  date_to: string;
+  passengers: number;
+  active: number;
+  created_at: string;
+  unsubscribe_token: string;
+  weekdays: string;
+  time_slot_pref: string;
+}
+
+export async function getActiveWatchers(tier?: "instant" | "free"): Promise<WatcherRow[]> {
   if (tier === "instant") {
-    return sql`
+    return sql<WatcherRow>`
       SELECT w.* FROM watchers w
       JOIN users u ON w.email = u.email
-      WHERE w.active = true AND (u.tier = 'pro' OR u.amnesty = true)
+      WHERE w.active = 1 AND (u.tier = 'pro' OR u.amnesty = 1)
     `;
   }
   if (tier === "free") {
-    return sql`
+    return sql<WatcherRow>`
       SELECT w.* FROM watchers w
       JOIN users u ON w.email = u.email
-      WHERE w.active = true AND u.tier = 'free' AND u.amnesty = false
+      WHERE w.active = 1 AND u.tier = 'free' AND u.amnesty = 0
     `;
   }
-  return sql`SELECT * FROM watchers WHERE active = true`;
+  return sql<WatcherRow>`SELECT * FROM watchers WHERE active = 1`;
 }
 
 export async function deactivateWatcher(unsubscribeToken: string) {
-  const sql = getDb();
-  await sql`UPDATE watchers SET active = false WHERE unsubscribe_token = ${unsubscribeToken}`;
+  await sql`UPDATE watchers SET active = 0 WHERE unsubscribe_token = ${unsubscribeToken}`;
 }
 
 export async function upsertAvailability(routeId: string, date: string, priceCents: number | null) {
-  const sql = getDb();
   await sql`
     INSERT INTO availability_cache (route_id, available_date, price_cents, checked_at)
-    VALUES (${routeId}, ${date}, ${priceCents}, NOW())
+    VALUES (${routeId}, ${date}, ${priceCents}, datetime('now'))
     ON CONFLICT (route_id, available_date)
-    DO UPDATE SET price_cents = ${priceCents}, checked_at = NOW()
+    DO UPDATE SET price_cents = ${priceCents}, checked_at = datetime('now')
   `;
 }
 
 export async function getAvailability(routeId: string) {
-  const sql = getDb();
   return sql`
     SELECT available_date, price_cents, checked_at
     FROM availability_cache
-    WHERE route_id = ${routeId} AND checked_at > NOW() - INTERVAL '2 hours'
+    WHERE route_id = ${routeId} AND checked_at > datetime('now', '-2 hours')
     ORDER BY available_date
   `;
 }
 
 export async function hasNotificationBeenSent(watcherId: number, date: string) {
-  const sql = getDb();
   const rows = await sql`
     SELECT 1 FROM notifications_sent WHERE watcher_id = ${watcherId} AND available_date = ${date}
   `;
@@ -137,7 +139,6 @@ export async function hasNotificationBeenSent(watcherId: number, date: string) {
 }
 
 export async function recordNotification(watcherId: number, date: string) {
-  const sql = getDb();
   await sql`
     INSERT INTO notifications_sent (watcher_id, available_date)
     VALUES (${watcherId}, ${date})
@@ -145,10 +146,18 @@ export async function recordNotification(watcherId: number, date: string) {
   `;
 }
 
-export async function getUserByEmail(email: string) {
-  const sql = getDb();
-  const rows = await sql`
+export interface UserRow {
+  id: number;
+  email: string;
+  tier: string;
+  amnesty: boolean;
+}
+
+export async function getUserByEmail(email: string): Promise<UserRow | null> {
+  const rows = await sql<{ id: number; email: string; tier: string; amnesty: number }>`
     SELECT id, email, tier, amnesty FROM users WHERE email = ${email} LIMIT 1
   `;
-  return rows[0] || null;
+  const row = rows[0];
+  if (!row) return null;
+  return { id: row.id, email: row.email, tier: row.tier, amnesty: !!row.amnesty };
 }

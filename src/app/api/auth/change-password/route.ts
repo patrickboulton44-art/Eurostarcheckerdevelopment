@@ -1,13 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { neon } from "@neondatabase/serverless";
+import { sql } from "@/lib/d1";
 import bcrypt from "bcryptjs";
-
-function getDb() {
-  const url = process.env.DATABASE_URL || process.env.STORAGE_URL;
-  if (!url) throw new Error("DATABASE_URL or STORAGE_URL is not set");
-  return neon(url);
-}
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -26,8 +20,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "New password must be at least 6 characters" }, { status: 400 });
   }
 
-  const sql = getDb();
-  const rows = await sql`SELECT password_hash FROM users WHERE email = ${session.user.email}`;
+  const rows = await sql<{ password_hash: string | null }>`SELECT password_hash FROM users WHERE email = ${session.user.email}`;
 
   if (rows.length === 0 || !rows[0].password_hash) {
     return NextResponse.json({ error: "Password change not available for Google accounts" }, { status: 400 });

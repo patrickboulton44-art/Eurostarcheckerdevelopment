@@ -1,14 +1,9 @@
 import NextAuth from "next-auth";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
-import { neon } from "@neondatabase/serverless";
+import { sql } from "@/lib/d1";
+import { initDb } from "@/lib/db";
 import { addBrevoContact } from "@/lib/email";
-
-function getDb() {
-  const url = process.env.DATABASE_URL || process.env.STORAGE_URL;
-  if (!url) throw new Error("DATABASE_URL or STORAGE_URL is not set");
-  return neon(url);
-}
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
@@ -25,14 +20,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const sql = getDb();
-        const rows = await sql`
+        const rows = await sql<{
+          id: number;
+          email: string;
+          name: string;
+          password_hash: string | null;
+          tier: string;
+        }>`
           SELECT id, email, name, password_hash, tier FROM users WHERE email = ${credentials.email as string}
         `;
 
         if (rows.length === 0) return null;
 
         const user = rows[0];
+        if (!user.password_hash) return null;
         const bcrypt = await import("bcryptjs");
         const valid = await bcrypt.compare(credentials.password as string, user.password_hash);
         if (!valid) return null;
@@ -49,22 +50,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (!user.email) return false;
 
       try {
-        const sql = getDb();
-
-        // Ensure users table exists
-        await sql`
-          CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            email TEXT NOT NULL UNIQUE,
-            name TEXT NOT NULL DEFAULT '',
-            password_hash TEXT,
-            google_id TEXT,
-            tier TEXT NOT NULL DEFAULT 'free',
-            stripe_customer_id TEXT,
-            stripe_subscription_id TEXT,
-            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-          )
-        `;
+        // Ensure schema exists (idempotent, SQLite-valid)
+        await initDb();
 
         if (account?.provider === "google") {
           await sql`
@@ -87,12 +74,16 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
     async jwt({ token }) {
       if (token.email) {
-        const sql = getDb();
-        const rows = await sql`SELECT id, tier, amnesty, stripe_customer_id FROM users WHERE email = ${token.email}`;
+        const rows = await sql<{
+          id: number;
+          tier: string;
+          amnesty: number;
+          stripe_customer_id: string | null;
+        }>`SELECT id, tier, amnesty, stripe_customer_id FROM users WHERE email = ${token.email}`;
         if (rows.length > 0) {
           token.userId = rows[0].id;
           token.tier = rows[0].tier;
-          token.amnesty = rows[0].amnesty;
+          token.amnesty = !!rows[0].amnesty;
           token.stripeCustomerId = rows[0].stripe_customer_id;
         }
       }

@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { neon } from "@neondatabase/serverless";
+import { sql } from "@/lib/d1";
+import { initDb } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { addBrevoContact } from "@/lib/email";
-
-function getDb() {
-  const url = process.env.DATABASE_URL || process.env.STORAGE_URL;
-  if (!url) throw new Error("DATABASE_URL or STORAGE_URL is not set");
-  return neon(url);
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -26,10 +21,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Password must be at least 6 characters" }, { status: 400 });
     }
 
-    const sql = getDb();
+    await initDb();
 
     // Check if user exists
-    const existing = await sql`SELECT id FROM users WHERE email = ${email}`;
+    const existing = await sql<{ id: number }>`SELECT id FROM users WHERE email = ${email}`;
     if (existing.length > 0) {
       return NextResponse.json({ error: "Account already exists. Try signing in." }, { status: 400 });
     }

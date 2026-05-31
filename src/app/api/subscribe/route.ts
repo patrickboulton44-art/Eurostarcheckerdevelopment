@@ -2,14 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { addWatcher, initDb } from "@/lib/db";
 import { ROUTES } from "@/lib/constants";
 import { sendEmail, buildConfirmationEmail } from "@/lib/email";
-import { neon } from "@neondatabase/serverless";
+import { sql } from "@/lib/d1";
 import crypto from "crypto";
-
-function getDb() {
-  const url = process.env.DATABASE_URL || process.env.STORAGE_URL;
-  if (!url) throw new Error("DATABASE_URL or STORAGE_URL is not set");
-  return neon(url);
-}
 
 export async function POST(req: NextRequest) {
   try {
@@ -37,10 +31,9 @@ export async function POST(req: NextRequest) {
     await initDb();
 
     // Check user tier — enforce free limits on backend
-    const sql = getDb();
-    const users = await sql`SELECT tier, amnesty FROM users WHERE email = ${email}`;
+    const users = await sql<{ tier: string; amnesty: number }>`SELECT tier, amnesty FROM users WHERE email = ${email}`;
     const userTier = users.length > 0 ? users[0].tier : "free";
-    const userAmnesty = users.length > 0 ? users[0].amnesty === true : false;
+    const userAmnesty = users.length > 0 ? !!users[0].amnesty : false;
     const instantAccess = userTier === "pro" || userAmnesty;
 
     // Free users: force all weekdays + any time slot

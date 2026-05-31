@@ -1,13 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { neon } from "@neondatabase/serverless";
+import { sql } from "@/lib/d1";
 import { deleteBrevoContact } from "@/lib/email";
-
-function getDb() {
-  const url = process.env.DATABASE_URL || process.env.STORAGE_URL;
-  if (!url) throw new Error("DATABASE_URL or STORAGE_URL is not set");
-  return neon(url);
-}
 
 export async function POST() {
   const session = await auth();
@@ -17,10 +11,9 @@ export async function POST() {
   }
 
   const email = session.user.email;
-  const sql = getDb();
 
   // Delete notifications for user's watchers
-  const watchers = await sql`SELECT id FROM watchers WHERE email = ${email}`;
+  const watchers = await sql<{ id: number }>`SELECT id FROM watchers WHERE email = ${email}`;
   for (const w of watchers) {
     await sql`DELETE FROM notifications_sent WHERE watcher_id = ${w.id}`;
   }
