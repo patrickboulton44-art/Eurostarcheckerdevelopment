@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "eurosnap-dev",
+  "name": "eurosnap",
   "main": ".open-next/worker.js",
   "compatibility_date": "2025-03-01",
   "compatibility_flags": ["nodejs_compat"],
@@ -14,6 +14,11 @@
       "database_name": "eurosnap",
       "database_id": "662dc4c3-3ada-48d9-af2d-e354f285aaef"
     }
+  ],
+  "workers_dev": true,
+  "routes": [
+    { "pattern": "eurosnap.app/*", "zone_name": "eurosnap.app" },
+    { "pattern": "www.eurosnap.app/*", "zone_name": "eurosnap.app" }
   ]
   // Cron Triggers are added in Phase 4 (Workers scheduled() handler) — until
   // then cron-job.org continues to hit /api/check and /api/check-free.
