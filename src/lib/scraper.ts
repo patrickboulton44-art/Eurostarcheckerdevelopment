@@ -72,7 +72,15 @@ export async function checkAvailability(
   // Small jitter to stagger parallel requests slightly
   await jitter(50, 200);
 
-  const targetDate = `${year}-${String(month).padStart(2, "0")}-15`;
+  // Anchor the query mid-month (the 15th) so Eurostar's returned spread of
+  // cheapestFares covers most of the month in one request. BUT for the current
+  // month, if the 15th is already in the past, anchor on today instead —
+  // otherwise Eurostar returns nothing for a past date and we'd miss any
+  // remaining dates in the current month entirely.
+  const now = new Date();
+  const isCurrentMonth = year === now.getFullYear() && month === now.getMonth() + 1;
+  const anchorDay = isCurrentMonth && now.getDate() > 15 ? now.getDate() : 15;
+  const targetDate = `${year}-${String(month).padStart(2, "0")}-${String(anchorDay).padStart(2, "0")}`;
   const searchUrl = `https://snap.eurostar.com/uk-en/search?origin=${originCode}&destination=${destCode}&outbound=${targetDate}&adult=1`;
 
   console.log(`[scraper] Fetching: ${searchUrl}`);
