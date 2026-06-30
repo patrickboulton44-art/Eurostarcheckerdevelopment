@@ -57,6 +57,60 @@ export async function initDb() {
       UNIQUE(watcher_id, available_date)
     )
   `;
+  // Single-row health heartbeat for the dead-man's-switch monitor.
+  await sql`
+    CREATE TABLE IF NOT EXISTS monitor_state (
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      last_run_at TEXT,
+      routes_ok INTEGER NOT NULL DEFAULT 0,
+      routes_total INTEGER NOT NULL DEFAULT 0,
+      consecutive_bad_runs INTEGER NOT NULL DEFAULT 0,
+      last_alert_at TEXT
+    )
+  `;
+}
+
+export interface MonitorState {
+  last_run_at: string | null;
+  routes_ok: number;
+  routes_total: number;
+  consecutive_bad_runs: number;
+  last_alert_at: string | null;
+}
+
+export async function getMonitorState(): Promise<MonitorState | null> {
+  const rows = await sql<MonitorState>`SELECT last_run_at, routes_ok, routes_total, consecutive_bad_runs, last_alert_at FROM monitor_state WHERE id = 1`;
+  return rows[0] || null;
+}
+
+// Records the outcome of one /api/check run and maintains the consecutive
+// bad-run counter. A run is "bad" when fewer than half the attempted
+// route-months scraped a structurally valid page. Returns the new state so the
+// caller can decide whether to fire an alert.
+export async function recordMonitorRun(routesOk: number, routesTotal: number): Promise<MonitorState> {
+  const prev = await getMonitorState();
+  const isBad = routesTotal > 0 && routesOk < routesTotal / 2;
+  const consecutive = isBad ? (prev?.consecutive_bad_runs ?? 0) + 1 : 0;
+  await sql`
+    INSERT INTO monitor_state (id, last_run_at, routes_ok, routes_total, consecutive_bad_runs, last_alert_at)
+    VALUES (1, datetime('now'), ${routesOk}, ${routesTotal}, ${consecutive}, ${prev?.last_alert_at ?? null})
+    ON CONFLICT (id) DO UPDATE SET
+      last_run_at = datetime('now'),
+      routes_ok = ${routesOk},
+      routes_total = ${routesTotal},
+      consecutive_bad_runs = ${consecutive}
+  `;
+  return {
+    last_run_at: new Date().toISOString(),
+    routes_ok: routesOk,
+    routes_total: routesTotal,
+    consecutive_bad_runs: consecutive,
+    last_alert_at: prev?.last_alert_at ?? null,
+  };
+}
+
+export async function markMonitorAlerted() {
+  await sql`UPDATE monitor_state SET last_alert_at = datetime('now') WHERE id = 1`;
 }
 
 export async function addWatcher(

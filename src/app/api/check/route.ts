@@ -1,13 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { checkAvailability } from "@/lib/scraper";
+import { checkAvailabilityDetailed } from "@/lib/scraper";
 import {
   getActiveWatchers,
   upsertAvailability,
   hasNotificationBeenSent,
   recordNotification,
+  recordMonitorRun,
+  markMonitorAlerted,
 } from "@/lib/db";
 import { sendEmail, buildAvailabilityEmail } from "@/lib/email";
 import { ROUTES } from "@/lib/constants";
+
+const OWNER_EMAIL = process.env.OWNER_EMAIL || "patrickboulton44@gmail.com";
+// Alert after this many consecutive bad runs (~5 min each → 15 min of failure).
+const BAD_RUN_ALERT_THRESHOLD = 3;
+// Don't re-alert more than once per this many hours during a sustained outage.
+const ALERT_COOLDOWN_HOURS = 6;
 
 export const maxDuration = 60;
 
@@ -44,6 +52,8 @@ export async function GET(req: NextRequest) {
 
     let totalChecked = 0;
     let totalNotified = 0;
+    let routesAttempted = 0;
+    let routesHealthy = 0;
 
     async function processRoute(routeId: string, groupWatchers: typeof watchers) {
       const route = ROUTES.find((r) => r.id === routeId);
@@ -51,7 +61,10 @@ export async function GET(req: NextRequest) {
 
       for (const m of monthList) {
         try {
-          const availability = await checkAvailability(route.originCode, route.destCode, m.year, m.month);
+          routesAttempted++;
+          const result = await checkAvailabilityDetailed(route.originCode, route.destCode, m.year, m.month);
+          if (result.healthy) routesHealthy++;
+          const availability = result.dates;
 
           for (const slot of availability) {
             await upsertAvailability(routeId, slot.date, slot.price);
@@ -104,10 +117,41 @@ export async function GET(req: NextRequest) {
       Array.from(routeGroups).map(([routeId, groupWatchers]) => processRoute(routeId, groupWatchers))
     );
 
+    // Dead-man's switch: record this run's scraper health and alert the owner if
+    // the scraper has been failing for several consecutive runs. A "bad" run is
+    // one where fewer than half the route-months returned a structurally valid
+    // page — that distinguishes a broken/blocked scraper from Eurostar simply
+    // being sold out (which still returns healthy, empty pages).
+    let monitorAlertSent = false;
+    try {
+      const state = await recordMonitorRun(routesHealthy, routesAttempted);
+      if (state.consecutive_bad_runs >= BAD_RUN_ALERT_THRESHOLD) {
+        // D1 stores "YYYY-MM-DD HH:MM:SS" (UTC, no T/Z) — normalise to ISO so V8 parses it as UTC.
+        const lastAlert = state.last_alert_at ? new Date(state.last_alert_at.replace(" ", "T") + "Z").getTime() : 0;
+        const cooledDown = Date.now() - lastAlert > ALERT_COOLDOWN_HOURS * 3600_000;
+        if (cooledDown) {
+          await sendEmail({
+            to: OWNER_EMAIL,
+            subject: "⚠️ Eurosnap scraper is failing",
+            html: `<p>The Eurosnap scraper has returned unhealthy results for ${state.consecutive_bad_runs} consecutive runs.</p>
+<p>Latest run: <strong>${routesHealthy}/${routesAttempted}</strong> route-months scraped a valid page.</p>
+<p>This usually means Eurostar changed their page, is blocking us, or the worker hit a limit — it is <em>not</em> the same as Eurostar being sold out (that still scrapes cleanly). Check <code>wrangler tail eurosnap</code>.</p>`,
+          });
+          await markMonitorAlerted();
+          monitorAlertSent = true;
+        }
+      }
+    } catch (err) {
+      console.error("Monitor recording failed:", err);
+    }
+
     return NextResponse.json({
       message: "Check complete",
       routesChecked: totalChecked,
+      routesHealthy,
+      routesAttempted,
       notificationsSent: totalNotified,
+      monitorAlertSent,
     });
   } catch (error) {
     console.error("Check error:", error);

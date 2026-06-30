@@ -54,5 +54,15 @@ CREATE TABLE IF NOT EXISTS notifications_sent (
   UNIQUE(watcher_id, available_date)
 );
 
+-- Single-row health heartbeat for the dead-man's-switch monitor.
+CREATE TABLE IF NOT EXISTS monitor_state (
+  id                   INTEGER PRIMARY KEY CHECK (id = 1),
+  last_run_at          TEXT,
+  routes_ok            INTEGER NOT NULL DEFAULT 0,
+  routes_total         INTEGER NOT NULL DEFAULT 0,
+  consecutive_bad_runs INTEGER NOT NULL DEFAULT 0,
+  last_alert_at        TEXT
+);
+
 CREATE INDEX IF NOT EXISTS idx_watchers_active ON watchers (active);
 CREATE INDEX IF NOT EXISTS idx_avail_route ON availability_cache (route_id);

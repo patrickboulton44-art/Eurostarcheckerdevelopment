@@ -62,13 +62,32 @@ function parseTimeSlots(outboundSlots: Array<{
   return slots;
 }
 
-// SSR page returns __NEXT_DATA__ with all availability — plain fetch, no headless browser needed
+export interface ScrapeResult {
+  dates: DateAvailability[];
+  // true  = we got a structurally valid page (NEXT_DATA parsed), even if the
+  //         fares list was empty — i.e. Eurostar is genuinely sold out.
+  // false = the fetch/parse failed (HTTP error, blocked, no NEXT_DATA, bad
+  //         shape) — i.e. the scraper is broken, NOT genuinely empty.
+  healthy: boolean;
+}
+
+// Back-compat wrapper: callers that only care about availability dates.
 export async function checkAvailability(
   originCode: string,
   destCode: string,
   year: number,
   month: number // 1-indexed
 ): Promise<DateAvailability[]> {
+  return (await checkAvailabilityDetailed(originCode, destCode, year, month)).dates;
+}
+
+// SSR page returns __NEXT_DATA__ with all availability — plain fetch, no headless browser needed
+export async function checkAvailabilityDetailed(
+  originCode: string,
+  destCode: string,
+  year: number,
+  month: number // 1-indexed
+): Promise<ScrapeResult> {
   // Small jitter to stagger parallel requests slightly
   await jitter(50, 200);
 
@@ -98,7 +117,7 @@ export async function checkAvailability(
 
   if (!res.ok) {
     console.log(`[scraper] HTTP ${res.status} for ${searchUrl}`);
-    return [];
+    return { dates: [], healthy: false };
   }
 
   const html = await res.text();
@@ -107,7 +126,7 @@ export async function checkAvailability(
   const match = html.match(/<script id="__NEXT_DATA__" type="application\/json">(.*?)<\/script>/);
   if (!match) {
     console.log(`[scraper] No __NEXT_DATA__ found in HTML`);
-    return [];
+    return { dates: [], healthy: false };
   }
 
   let nextData;
@@ -115,7 +134,7 @@ export async function checkAvailability(
     nextData = JSON.parse(match[1]);
   } catch {
     console.log(`[scraper] Failed to parse __NEXT_DATA__`);
-    return [];
+    return { dates: [], healthy: false };
   }
 
   const availabilityData: DateAvailability[] = [];
@@ -123,7 +142,7 @@ export async function checkAvailability(
 
   if (!pageProps) {
     console.log(`[scraper] No pageProps found`);
-    return [];
+    return { dates: [], healthy: false };
   }
 
   // Parse time slots for the searched date
@@ -164,5 +183,5 @@ export async function checkAvailability(
   const slotsWithFares = outboundSlots.filter((s: { fare: unknown }) => s.fare !== null).length;
   console.log(`[scraper] ${originCode} → ${destCode} | ${searchDate} | dates: ${availabilityData.length} | slots: ${slotsWithFares} morning/afternoon`);
 
-  return availabilityData;
+  return { dates: availabilityData, healthy: true };
 }
